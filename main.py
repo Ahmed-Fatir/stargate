@@ -358,6 +358,6 @@ if __name__ == "__main__":
         "main:app",
         host=HOST,
         port=PORT,
-        reload=True,
+        reload=False,  # Disabled for production
         log_level=LOG_LEVEL.lower()
     )
