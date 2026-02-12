@@ -241,6 +241,7 @@ async def detailed_status(token: str = Depends(verify_token)):
 async def get_files(
     service: str,
     request: FileRequest,
+    always_zip: bool = False,
     token: str = Depends(verify_token)
 ):
     """
@@ -324,16 +325,16 @@ async def get_files(
                 file_details=file_details
             )
         
-        # If only one file found, return the file directly
-        if len(found_files) == 1:
+        # If only one file found and not forcing ZIP, return the file directly
+        if len(found_files) == 1 and not always_zip:
             file_spec, file_path = found_files[0]
             return StreamingResponse(
                 io.BytesIO(file_path.read_bytes()),
                 media_type="application/octet-stream",
                 headers={"Content-Disposition": f"attachment; filename={file_spec}"}
             )
-        
-        # If multiple files found, create ZIP
+
+        # Create ZIP for multiple files or when always_zip is enabled
         zip_buffer = io.BytesIO()
         
         with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
