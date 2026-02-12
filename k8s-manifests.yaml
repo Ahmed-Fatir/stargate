@@ -1,0 +1,145 @@
+# Secret for API Token
+apiVersion: v1
+kind: Secret
+metadata:
+  name: stargate-secret
+  namespace: microservices
+type: Opaque
+data:
+  API_TOKEN: YTJlYTk4ZmFmYmY3NmU5NGU2MTY1MTcwNWJmZWJkNWE3OWM5Y2VjMzRkMDhjZjI2MjM0ZTYxMTE0NzMwYjExZQ==
+---
+# ConfigMap for environment variables
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: stargate-config
+  namespace: microservices
+data:
+  MAX_FILES_PER_REQUEST: "100"
+  SYSTEM_FILESTORE_PATH: "/ceph/data/infra/odoo/system-fs/filestore"
+  APP_FILESTORE_PATH: "/ceph/data/infra/odoo/app-fs/filestore"
+  BTBLK_FILESTORE_PATH: "/ceph/data/infra/odoo/btblk-fs/filestore"
+  DECIMAL_FILESTORE_PATH: "/ceph/data/infra/odoo/decimal-fs/filestore"
+  SRM_FILESTORE_PATH: "/ceph/data/infra/odoo/srm-fs/filestore"
+  PORTAL_FILESTORE_PATH: "/ceph/data/infra/odoo/portal-fs/filestore"
+---
+# Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: stargate
+  namespace: microservices
+  labels:
+    app: stargate
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: stargate
+  template:
+    metadata:
+      labels:
+        app: stargate
+    spec:
+      imagePullSecrets:
+        - name: experio-registry-secret
+      containers:
+      - name: stargate
+        image: registry.experioservices.com/stargate:1.0.0
+        ports:
+        - containerPort: 8000
+          name: http
+        env:
+        - name: API_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: stargate-secret
+              key: API_TOKEN
+        envFrom:
+        - configMapRef:
+            name: stargate-config
+        volumeMounts:
+        - name: system-filestore
+          mountPath: /ceph/data/infra/odoo/system-fs/filestore
+          readOnly: true
+        - name: app-filestore
+          mountPath: /ceph/data/infra/odoo/app-fs/filestore
+          readOnly: true
+        - name: btblk-filestore
+          mountPath: /ceph/data/infra/odoo/btblk-fs/filestore
+          readOnly: true
+        - name: decimal-filestore
+          mountPath: /ceph/data/infra/odoo/decimal-fs/filestore
+          readOnly: true
+        - name: srm-filestore
+          mountPath: /ceph/data/infra/odoo/srm-fs/filestore
+          readOnly: true
+        - name: portal-filestore
+          mountPath: /ceph/data/infra/odoo/portal-fs/filestore
+          readOnly: true
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+      volumes:
+      - name: system-filestore
+        hostPath:
+          path: /ceph/data/infra/odoo/system-fs/filestore
+          type: Directory
+      - name: app-filestore
+        hostPath:
+          path: /ceph/data/infra/odoo/app-fs/filestore
+          type: Directory
+      - name: btblk-filestore
+        hostPath:
+          path: /ceph/data/infra/odoo/btblk-fs/filestore
+          type: Directory
+      - name: decimal-filestore
+        hostPath:
+          path: /ceph/data/infra/odoo/decimal-fs/filestore
+          type: Directory
+      - name: srm-filestore
+        hostPath:
+          path: /ceph/data/infra/odoo/srm-fs/filestore
+          type: Directory
+      - name: portal-filestore
+        hostPath:
+          path: /ceph/data/infra/odoo/portal-fs/filestore
+          type: Directory
+---
+# Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: stargate-service
+  namespace: microservices
+  labels:
+    app: stargate
+spec:
+  selector:
+    app: stargate
+  ports:
+  - name: http
+    port: 80
+    targetPort: 8000
+    protocol: TCP
+  type: ClusterIP
