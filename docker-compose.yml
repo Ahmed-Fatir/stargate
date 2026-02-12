@@ -1,0 +1,27 @@
+services:
+  startgate:
+    build: .
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    volumes:
+      # Mount all filestore directories (read-only for security)
+      - /ceph/data/infra/odoo/system-fs/filestore:/ceph/data/infra/odoo/system-fs/filestore:ro
+      - /ceph/data/infra/odoo/app-fs/filestore:/ceph/data/infra/odoo/app-fs/filestore:ro
+      - /ceph/data/infra/odoo/btblk-fs/filestore:/ceph/data/infra/odoo/btblk-fs/filestore:ro
+      - /ceph/data/infra/odoo/decimal-fs/filestore:/ceph/data/infra/odoo/decimal-fs/filestore:ro
+      - /ceph/data/infra/odoo/srm-fs/filestore:/ceph/data/infra/odoo/srm-fs/filestore:ro
+      - /ceph/data/infra/odoo/portal-fs/filestore:/ceph/data/infra/odoo/portal-fs/filestore:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - startgate
+networks:
+  startgate:
+    name: startgate
