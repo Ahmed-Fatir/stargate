@@ -32,6 +32,10 @@ LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
 MAX_FILES_PER_REQUEST = int(os.getenv("MAX_FILES_PER_REQUEST", "100"))
 EXPECTED_HASH_LENGTH = 40  # SHA-1 hash length
 
+V2_V1_DB_MAP = {
+    "experio_cabinet_93": "experio_cabinet_10",
+}
+
 # Service mapping
 SERVICES = {
     "system": SYSTEM_FILESTORE_PATH,
@@ -298,6 +302,24 @@ async def get_files(
                     found_files.append((file_spec, file_path))
                     logger.info(f"Found file in {service}: {file_path} ({file_size} bytes)")
                 else:
+                    if service == "system" and database in V2_V1_DB_MAP:
+                        # Check in the mapped V1 database for backward compatibility
+                        v1_database = V2_V1_DB_MAP[database]
+                        file_path_v1 = get_file_path("app", v1_database, file_hash)
+                        if file_path_v1.exists():
+                            metadata = get_file_metadata(file_path_v1)
+                            file_size = metadata.get("file_size", 0)
+                            total_size += file_size
+                            
+                            file_details.append(FileInfo(
+                                database=v1_database,
+                                file_hash=file_hash,
+                                found=True,
+                                file_size=file_size
+                            ))
+                            found_files.append((file_spec, file_path_v1))
+                            logger.info(f"Found file in {service} (V1 mapping): {file_path_v1} ({file_size} bytes)")
+                            continue
                     file_details.append(FileInfo(
                         database=database,
                         file_hash=file_hash,
