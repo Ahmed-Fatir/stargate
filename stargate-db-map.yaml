@@ -1,0 +1,11 @@
+# ConfigMap for V2 to V1 database mapping
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: stargate-db-map
+  namespace: microservices
+data:
+  V2_V1_DB_MAP: |
+    {
+      "experio_cabinet_93": "experio_cabinet_10"
+    }

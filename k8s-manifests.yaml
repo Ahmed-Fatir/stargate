@@ -59,6 +59,10 @@ spec:
         - configMapRef:
             name: stargate-config
         volumeMounts:
+        - name: db-map
+          mountPath: /config/v2_v1_db_map.json
+          subPath: V2_V1_DB_MAP
+          readOnly: true
         - name: system-filestore
           mountPath: /ceph/data/infra/odoo/system-fs/filestore
           readOnly: true
@@ -95,12 +99,15 @@ spec:
           failureThreshold: 3
         resources:
           requests:
-            memory: "256Mi"
-            cpu: "100m"
-          limits:
             memory: "512Mi"
-            cpu: "500m"
+            cpu: "250m"
+          limits:
+            memory: "2Gi"
+            cpu: "1000m"
       volumes:
+      - name: db-map
+        configMap:
+          name: stargate-db-map
       - name: system-filestore
         hostPath:
           path: /ceph/data/infra/odoo/system-fs/filestore

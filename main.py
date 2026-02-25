@@ -32,9 +32,18 @@ LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
 MAX_FILES_PER_REQUEST = int(os.getenv("MAX_FILES_PER_REQUEST", "100"))
 EXPECTED_HASH_LENGTH = 40  # SHA-1 hash length
 
-V2_V1_DB_MAP = {
-    "experio_cabinet_93": "experio_cabinet_10",
-}
+# V2 to V1 database mapping (read dynamically from mounted ConfigMap file)
+import json
+DB_MAP_FILE = "/config/v2_v1_db_map.json"
+
+def get_v2_v1_db_map() -> dict:
+    """Read the V2→V1 database mapping from the mounted ConfigMap file.
+    Re-reads on every call so ConfigMap updates are picked up live."""
+    try:
+        with open(DB_MAP_FILE, "r") as f:
+            return json.loads(f.read())
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {}
 
 # Service mapping
 SERVICES = {
@@ -302,11 +311,15 @@ async def get_files(
                     found_files.append((file_spec, file_path))
                     logger.info(f"Found file in {service}: {file_path} ({file_size} bytes)")
                 else:
-                    if service == "system" and database in V2_V1_DB_MAP:
+                    if service == "system" and database in get_v2_v1_db_map() and "app" in SERVICES:
+                        v2_v1_map = get_v2_v1_db_map()
                         # Check in the mapped V1 database for backward compatibility
-                        v1_database = V2_V1_DB_MAP[database]
+                        v1_database = v2_v1_map[database]
                         file_path_v1 = get_file_path("app", v1_database, file_hash)
-                        if file_path_v1.exists():
+                        
+                        # Security check on V1 fallback path
+                        app_base = Path(SERVICES["app"]).resolve()
+                        if str(file_path_v1.resolve()).startswith(str(app_base)) and file_path_v1.exists():
                             metadata = get_file_metadata(file_path_v1)
                             file_size = metadata.get("file_size", 0)
                             total_size += file_size
@@ -318,15 +331,17 @@ async def get_files(
                                 file_size=file_size
                             ))
                             found_files.append((file_spec, file_path_v1))
-                            logger.info(f"Found file in {service} (V1 mapping): {file_path_v1} ({file_size} bytes)")
+                            logger.info(f"Found file in {service} (V1 mapping {database} -> {v1_database}): {file_path_v1} ({file_size} bytes)")
                             continue
+                        logger.warning(f"File not found in {service} (also checked V1 mapping {database} -> {v1_database}): {file_path}")
+                    else:
+                        logger.warning(f"File not found in {service}: {file_path}")
                     file_details.append(FileInfo(
                         database=database,
                         file_hash=file_hash,
                         found=False,
                         error="File not found"
                     ))
-                    logger.warning(f"File not found in {service}: {file_path}")
                     
             except Exception as e:
                 file_details.append(FileInfo(
